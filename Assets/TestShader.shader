@@ -41,7 +41,7 @@ Varyings Vert(const Attributes input)
 {
     Varyings output;
     
-    output.positionHCS = TransformObjectToHClip(input.positionOS);
+    output.positionHCS = TransformObjectToHClip(input.normalOS); //!!!
     output.positionWS = TransformObjectToWorld(input.positionOS);
     
     return output;
