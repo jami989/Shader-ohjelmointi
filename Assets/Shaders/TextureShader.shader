@@ -44,7 +44,7 @@ Shader "CustomRenderTexture/TextureShader"
                 output.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
                 output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
-                output.uv = input.uv; // uv * tiling + offset
+                output.uv = input.uv * (_Time.x / 5 * _MainTex_ST.xy) + _MainTex_ST.zw; // uv * tiling + offset
                 
                 return output;
             }
