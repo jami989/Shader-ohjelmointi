@@ -1,68 +1,61 @@
-Shader "CustomRenderTexture/TextureShader"
+Shader "Custom/ProximityDeform"
 {
     Properties
     {
-        _MainTex("Main texture", 2D) = "white" {}
-        _SecTex("Second texture", 2D) = "white" {}
-     }
-
-     SubShader
+        _Color("Main Color", Color) = (1, 1, 1, 1)
+        _PlayerPosition("Player Position", Vector) = (0, 0, 0, 0)
+        _DistanceAttenuation("Distance Attenuation", Range(1, 10)) = 1
+    }
+    SubShader
     {
         Tags { "RenderType"="Opaque" "RenderPipeline" = "UniversalPipeline" "Queue" = "Geometry" }
+        
         Pass
         {
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-
+            
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             TEXTURE2D(_MainTex);
-            TEXTURE2D(_SecTex);
             SAMPLER(sampler_MainTex);
-            SAMPLER(sampler_SecTex);
+            
+            CBUFFER_START(UnityPerMaterial)
+            float4 color;
+            float3 _PlayerPosition;
+            int _DistanceAttenuation;
+            CBUFFER_END
             
             struct Attributes
             {
                 float4 positionOS : POSITION;
-                float3 normalOS : NORMAL;
-                float2 uv : TEXCOORD0;
             };
             struct Varyings
             {
                 float4 positionHCS : SV_POSITION;
-                float3 normalWS : TEXCOORD0;
-                float3 positionWS : TEXCOORD1;
-                float2 uv : TEXCOORD2;
             };
-            
-            CBUFFER_START(UnityPerMaterial)
-            float4 _Color;
-            float _Shininess;
-            float4 _MainTex_ST;
-            float4 _SecTex_ST;
-            CBUFFER_END
             
             Varyings vert (Attributes input)
             {
                 Varyings output;
-                output.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
-                output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
-                output.uv = input.uv; // uv * tiling + offset
+                const float3 PositionWS = TransformObjectToWorld(input.positionOS.xyz);
+                
+                const float3 dir = PositionWS - _PlayerPosition;
+                float distance = length(dir);
+                distance = saturate(1 - distance / _DistanceAttenuation);
+
+                output.positionHCS = TransformWorldToHClip(PositionWS + normalize(dir) * distance);
                 
                 return output;
             }
             float4 frag (Varyings input) : SV_TARGET
             {
-                const float4 Color1 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv);
-                const float4 Color2 = SAMPLE_TEXTURE2D(_SecTex, sampler_SecTex, input.uv);
-
-                const float4 FinalColor = lerp(Color1, Color2, (sin(input.uv.x * 5) + 1) / 2);
-                
-                return FinalColor;
+                return color;
             }
             ENDHLSL
         }
+    
+
 
         // Make grid not visible through shaders
         Pass
