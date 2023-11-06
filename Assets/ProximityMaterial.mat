@@ -44,5 +44,5 @@ Material:
     m_Floats:
     - _DistanceAttenuation: 4.02
     m_Colors:
-    - _PlayerPosition: {r: -1.84, g: 0.92, b: -1.72, a: 0}
+    - _PlayerPosition: {r: -2.01, g: 0.92, b: -1.894, a: 0}
   m_BuildTextureStacks: []
