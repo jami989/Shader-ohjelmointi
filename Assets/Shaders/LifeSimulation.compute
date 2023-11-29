@@ -1,5 +1,5 @@
 float4 CellColour;
-Texture2D<float2> BaseMap;
+RWTexture2D<float4> BaseMap;
 
 RWTexture2D<float4> State1;
 RWTexture2D<float4> State2;
@@ -13,27 +13,25 @@ RWTexture2D<float4> State2;
 #pragma kernel InitGun
 
 
-RWTexture2D<float4> Result;
-
+//RWTexture2D<float4> Result;
 bool IsAlive(float4 cell)
 {
     return cell.x + cell.y + cell.z + cell.z != 0;
 }
 
-
-void GameOfLife(uint3 id : SV_DispatchThreadID, RWTexture2D<float4> current, RWTexture2D<float4> previous)
+RWTexture2D<float4> GameOfLife(uint3 id : SV_DispatchThreadID, RWTexture2D<float4> current, RWTexture2D<float4> previous)
 {
     int neighbors = 0;
 
     // Count the neighbors
-    if ( IsAlive(previous[id.xy + uint3(-1, 0, 0)])) neighbors += 1;
-    if ( IsAlive(previous[id.xy + uint3(1, 0, 0)])) neighbors += 1;
-    if ( IsAlive(previous[id.xy + uint3(0, -1, 0)])) neighbors += 1;
-    if ( IsAlive(previous[id.xy + uint3(0, 1, 0)])) neighbors += 1;
-    if ( IsAlive(previous[id.xy + uint3(1, -1, 0)])) neighbors += 1;
-    if ( IsAlive(previous[id.xy + uint3(-1, 1, 0)])) neighbors += 1;
-    if ( IsAlive(previous[id.xy + uint3(1, 1, 0)])) neighbors += 1;
-    if ( IsAlive(previous[id.xy + uint3(-1, -1, 0)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(-1, 0)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(1, 0)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(0, -1)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(0, 1)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(1, -1)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(-1, 1)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(1, 1)])) neighbors += 1;
+    if ( IsAlive(previous[id.xy + uint2(-1, -1)])) neighbors += 1;
     
     // Any live cell with two or three live neighbours lives
     if (IsAlive(previous[id.xy]))
@@ -44,24 +42,24 @@ void GameOfLife(uint3 id : SV_DispatchThreadID, RWTexture2D<float4> current, RWT
             current[id.xy] += -CellColour;
     }// Any dead cell with exactly three live neighbours becomes a live cell
     else if (neighbors == 3) current[id.xy] = CellColour;
+
+    return current;
 }
 
 [numthreads(8,8,1)]
 void Update1 (uint3 id : SV_DispatchThreadID)
 {
-    GameOfLife(id, State1, State2);
+    State1 = GameOfLife(id, State1, State2);
 
-    // BaseMap = State1
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+    BaseMap = State1;
 }
 
 [numthreads(8,8,1)]
 void Update2 (uint3 id : SV_DispatchThreadID)
 {
-    GameOfLife(id, State2, State1);
+    State2 = GameOfLife(id, State2, State1);
 
-    // BaseMap = State2
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+    BaseMap = State2;
 }
 
 // Initializations

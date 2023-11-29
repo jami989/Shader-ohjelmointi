@@ -1,74 +1,68 @@
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using UnityEngine.Rendering;
 
 public enum Seeds
 {
     FullTexture,
-    R_Pentomino,
+    RPentomino,
     Acorn,
-    Gosper_Gun
+    GosperGun
 }
 
 public class GameOfLife : MonoBehaviour
 {
     private static readonly int BaseMap = Shader.PropertyToID("BaseMap");
     private static readonly int CellColor = Shader.PropertyToID("CellColour");
-    //private static readonly int TextureSize = Shader.PropertyToID("CellColour"); // bonus
+    //private static readonly int TextureSize = Shader.PropertyToID(""); // bonus
     private static readonly int State1Tex = Shader.PropertyToID("State1");
     private static readonly int State2Tex = Shader.PropertyToID("State2");
-    
-    [SerializeField] private Color cellColor;
-    
-    [SerializeField] private Seeds seed = Seeds.FullTexture; // Dropdown menu
-    
-    
-    
-    
-    [SerializeField] private ComputeShader LifeSimulator; // LifeSimulation.compute
-    //[SerializeField] private Mesh LifeMesh;
-    [SerializeField] private Material PlaneMaterial;
 
-    private static int UpdateKernel1, UpdateKernel2;
-    private RenderTexture state1, state2;
+    [SerializeField] private Color cellColor;
+    [SerializeField] private Seeds seed = Seeds.FullTexture;
+    [SerializeField] private ComputeShader lifeSimulator;
+    [SerializeField] private Material planeMaterial;
+    [SerializeField, Range(0f, 2f)] private float updateInterval;
     
-    [SerializeField, Range(0f, 2f)] private float UpdateInterval;
-    private float NextUpdate;
-    private bool isState1 = true;
+    private float _nextUpdate;
+    private bool _isState1 = true;
+    private static int _updateKernel1, _updateKernel2, _fullKernel, _rPentominoKernel, _acornKernel, _gunKernel;
+    private RenderTexture _state1, _state2;
     
     private static readonly Vector2Int TexSize = new Vector2Int(512, 512);
     
     void Start()
     {
-        UpdateKernel1 = LifeSimulator.FindKernel("Update1");
-        UpdateKernel2 = LifeSimulator.FindKernel("Update2");
+        _updateKernel1 = lifeSimulator.FindKernel("Update1");
+        _updateKernel2 = lifeSimulator.FindKernel("Update2");
+        _fullKernel = lifeSimulator.FindKernel("InitFullTexture");
+        _rPentominoKernel = lifeSimulator.FindKernel("InitRPentomino");
+        _acornKernel = lifeSimulator.FindKernel("InitAcorn");
+        _gunKernel = lifeSimulator.FindKernel("InitGun");
 
-        state1 = new RenderTexture(TexSize.x, TexSize.y, 0, DefaultFormat.LDR)
+        _state1 = new RenderTexture(TexSize.x, TexSize.y, 0, DefaultFormat.LDR)
         {
             filterMode = FilterMode.Point,
             enableRandomWrite = true
-        }; state1.Create();
-        state2 = new RenderTexture(TexSize.x, TexSize.y, 0, DefaultFormat.LDR)
+        }; _state1.Create();
+        _state2 = new RenderTexture(TexSize.x, TexSize.y, 0, DefaultFormat.LDR)
         {
             filterMode = FilterMode.Point,
             enableRandomWrite = true
-        }; state2.Create();
+        }; _state2.Create();
         
         // Add everything that won't ever be updated to compute shaders
-        LifeSimulator.SetTexture(UpdateKernel1, State1Tex, state1);
-        LifeSimulator.SetTexture(UpdateKernel1, State2Tex, state2);
+        lifeSimulator.SetTexture(_updateKernel1, State1Tex, _state1);
+        lifeSimulator.SetTexture(_updateKernel1, State2Tex, _state2);
         
-        LifeSimulator.SetTexture(UpdateKernel2, State1Tex, state1);
-        LifeSimulator.SetTexture(UpdateKernel2, State2Tex, state2);
+        lifeSimulator.SetTexture(_updateKernel2, State1Tex, _state1);
+        lifeSimulator.SetTexture(_updateKernel2, State2Tex, _state2);
         
-        LifeSimulator.SetTexture(LifeSimulator.FindKernel("InitFullTexture"), State1Tex, state1);
-        LifeSimulator.SetTexture(LifeSimulator.FindKernel("InitRPentomino"), State1Tex, state1);
-        LifeSimulator.SetTexture(LifeSimulator.FindKernel("InitAcorn"), State1Tex, state1);
-        LifeSimulator.SetTexture(LifeSimulator.FindKernel("InitGun"), State1Tex, state1);
+        lifeSimulator.SetTexture(_fullKernel, State1Tex, _state1);
+        lifeSimulator.SetTexture(_rPentominoKernel, State1Tex, _state1);
+        lifeSimulator.SetTexture(_acornKernel, State1Tex, _state1);
+        lifeSimulator.SetTexture(_gunKernel, State1Tex, _state1);
         
-        LifeSimulator.SetVector(CellColor, cellColor);
+        lifeSimulator.SetVector(CellColor, cellColor);
         
         // bonus
         //LifeSimulator.SetVector(TextureSize, new vector2());
@@ -77,42 +71,39 @@ public class GameOfLife : MonoBehaviour
         switch(seed)
         {
             case Seeds.FullTexture:
-                LifeSimulator.Dispatch(LifeSimulator.FindKernel("InitFullTexture"), TexSize.x / 8, TexSize.y / 8, 1);
+                lifeSimulator.Dispatch(_fullKernel, TexSize.x / 8, TexSize.y / 8, 1);
                 break;
-            case Seeds.R_Pentomino:
-                LifeSimulator.Dispatch(LifeSimulator.FindKernel("InitRPentomino"), TexSize.x / 8, TexSize.y / 8, 1);
+            case Seeds.RPentomino:
+                lifeSimulator.Dispatch(_rPentominoKernel, TexSize.x / 8, TexSize.y / 8, 1);
                 break;
             case Seeds.Acorn:
-                LifeSimulator.Dispatch(LifeSimulator.FindKernel("InitAcorn"), TexSize.x / 8, TexSize.y / 8, 1);
+                lifeSimulator.Dispatch(_acornKernel, TexSize.x / 8, TexSize.y / 8, 1);
                 break;
-            case Seeds.Gosper_Gun:
-                LifeSimulator.Dispatch(LifeSimulator.FindKernel("InitGun"), TexSize.x / 8, TexSize.y / 8, 1);
-                break;
-            default:
+            case Seeds.GosperGun:
+                lifeSimulator.Dispatch(_gunKernel, TexSize.x / 8, TexSize.y / 8, 1);
                 break;
         }
     }
 
     void Update()
     {
-        if (Time.time < NextUpdate) return;
-        NextUpdate = Time.time + UpdateInterval;
-        isState1 = !isState1;
         
-        // Scriptin kuuluisi myös päivittää esitykseen käytetyn materiaalin
-        // tekstuuria vaiheen mukaan (flipbook).
-        LifeSimulator.Dispatch(isState1 ? UpdateKernel1 : UpdateKernel2, TexSize.x / 8, TexSize.y / 8, 1);
-        PlaneMaterial.SetTexture(BaseMap, isState1 ? state1 : state2);
+        if (Time.time < _nextUpdate) return;
+        _nextUpdate = Time.time + updateInterval;
+        _isState1 = !_isState1;
+        
+        lifeSimulator.Dispatch(_isState1 ? _updateKernel1 : _updateKernel2, TexSize.x / 8, TexSize.y / 8, 1);
+        planeMaterial.SetTexture(BaseMap, _isState1 ? _state1 : _state2);
     }
     
     private void OnDisable()
     {
-        state1.Release();
-        state2.Release();
+        _state1.Release();
+        _state2.Release();
     }
     private void OnDestroy()
     {
-        state1.Release();
-        state2.Release();
+        _state1.Release();
+        _state2.Release();
     }
 }
